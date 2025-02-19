@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Editor de Desenho com Logo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Rubik', sans-serif;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100vh;
+      background-color: #8EC6E6;
+      font-size: 16px;
+    }
+
+    .toolbar {
+      background-color: #8EC6E6;
+      padding: 20px;
+      border-bottom: 1px solid #ccc;
+      width: 100%;
+      text-align: center;
+      box-sizing: border-box;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+    }
+
+    .color-picker {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .color-btn {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      margin: 5px;
+      border: none;
+      cursor: pointer;
+      outline: none;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .color-btn.black { background-color: black; }
+    .color-btn.red { background-color: red; }
+    .color-btn.blue { background-color: blue; }
+    .color-btn.green { background-color: green; }
+    .color-btn.yellow { background-color: yellow; }
+
+    .color-btn.active {
+      border: 2px solid #555;
+    }
+
+    #eraser-btn {
+      padding: 10px 20px;
+      background-color: #E0E0E0;
+      color: black;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+
+    #eraser-btn:hover {
+      background-color: #3e8e41;
+    }
+
+    #eraser-btn.active {
+      border: 2px solid black;
+    }
+
+    /* Espaço reservado para a logo */
+    .logo-placeholder {
+      width: 150px; /* Largura do espaço para a logo */
+      height: 50px; /* Altura do espaço para a logo */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #drawing-canvas {
+      border: 1px solid #000;
+      background-color: #fff;
+      cursor: crosshair;
+    }
+
+    .footer {
+      margin-top: 20px;
+    }
+
+    button {
+      padding: 10px 20px;
+      background-color: #E0E0E0;
+      color: black;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+      margin: 0 10px;
+      font-size: 16px;
+    }
+
+    button:hover {
+      background-color: #3e8e41;
+    }
+
+    .brush-size {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+    }
+
+    .brush-size-btn {
+      padding: 5px 10px;
+      background-color: #E0E0E0;
+      color: black;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+
+    .brush-size-btn:hover {
+      background-color: #000000;
+    }
+
+    .brush-size-btn.active {
+      border: 2px solid black;
+    }
+
+    #fill-btn {
+      padding: 10px 20px;
+      background-color: #E0E0E0;
+      color: black;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+      margin: 0 10px;
+      font-size: 16px;
+    }
+
+    #fill-btn:hover {
+      background-color: #3e8e41;
+    }
+
+    #fill-btn.active {
+      border: 2px solid black;
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <div class="color-picker">
+      <button class="color-btn black active" data-color="#000000"></button>
+      <button class="color-btn red" data-color="#FF0000"></button>
+      <button class="color-btn blue" data-color="#0000FF"></button>
+      <button class="color-btn green" data-color="#00FF00"></button>
+      <button class="color-btn yellow" data-color="#FFFF00"></button>
+      <button id="eraser-btn">Borracha</button>
+    </div>
+
+    <div class="logo-placeholder">
+      <img src="logotedi.png" alt="Logo" style="max-width: 100%; max-height: 100%;">
+    </div>
+
+    <div class="brush-size">
+      <label for="brush-size">Tamanho do Pincel:</label>
+      <button class="brush-size-btn" data-size="5">Pequeno</button>
+      <button class="brush-size-btn active" data-size="10">Médio</button>
+      <button class="brush-size-btn" data-size="20">Grande</button>
+      <button id="fill-btn">Preencher</button>
+    </div>
+  </div>
+
+  <canvas id="drawing-canvas"></canvas>
+
+  <div class="footer">
+    <button id="undo-btn">Desfazer</button>
+    <button id="clear-btn">Limpar Tela</button>
+    <button id="save-btn">Salvar Desenho</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('drawing-canvas');
+    const ctx = canvas.getContext('2d');
+    const colorButtons = document.querySelectorAll('.color-btn');
+    const brushSizeButtons = document.querySelectorAll('.brush-size-btn');
+    const clearBtn = document.getElementById('clear-btn');
+    const saveBtn = document.getElementById('save-btn');
+    const fillBtn = document.getElementById('fill-btn');
+    const eraserBtn = document.getElementById('eraser-btn');
+    const undoBtn = document.getElementById('undo-btn');
+
+    let currentColor = '#000000';
+    let currentSize = 10; // Tamanho médio por padrão
+    let isDrawing = false;
+    let lastX = 0;
+    let lastY = 0;
+    let isFilling = false;
+    let isErasing = false;
+    let canvasHistory = [];
+
+    function setCanvasSize() {
+      canvas.width = window.innerWidth * 0.8;
+      canvas.height = window.innerHeight * 0.7;
+    }
+
+    setCanvasSize();
+    window.addEventListener('resize', setCanvasSize);
+
+    // Salva o estado atual do canvas no histórico
+    function saveCanvasState() {
+      canvasHistory.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+      if (canvasHistory.length > 20) {
+        canvasHistory.shift(); // Limita o histórico a 20 estados
+      }
+    }
+
+    // Desfaz a última ação
+    function undo() {
+      if (canvasHistory.length > 1) {
+        canvasHistory.pop(); // Remove o estado atual
+        const previousState = canvasHistory[canvasHistory.length - 1];
+        ctx.putImageData(previousState, 0, 0);
+      } else {
+        clearCanvas();
+      }
+    }
+
+    colorButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        colorButtons.forEach(btn => btn.classList.remove('active'));
+        button.classList.add('active');
+        currentColor = button.dataset.color;
+        isErasing = false;
+        eraserBtn.classList.remove('active');
+        console.log(`Cor selecionada: ${currentColor}`);
+      });
+    });
+
+    brushSizeButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        brushSizeButtons.forEach(btn => btn.classList.remove('active'));
+        button.classList.add('active');
+        currentSize = parseInt(button.dataset.size);
+        isFilling = false;
+        fillBtn.classList.remove('active');
+        console.log(`Tamanho do pincel selecionado: ${currentSize}`);
+      });
+    });
+
+    function startDrawing(e) {
+      if (isFilling) {
+        fill(e);
+        return;
+      }
+      saveCanvasState(); // Salva o estado antes de começar a desenhar
+      isDrawing = true;
+      [lastX, lastY] = [e.offsetX, e.offsetY];
+    }
+
+    function draw(e) {
+      if (!isDrawing) return;
+      ctx.beginPath();
+      ctx.moveTo(lastX, lastY);
+      ctx.lineTo(e.offsetX, e.offsetY);
+      ctx.strokeStyle = isErasing ? '#FFFFFF' : currentColor; // Usa branco para a borracha
+      ctx.lineWidth = currentSize;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      [lastX, lastY] = [e.offsetX, e.offsetY];
+    }
+
+    function stopDrawing() {
+      isDrawing = false;
+    }
+
+    function clearCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      canvasHistory = []; // Limpa o histórico ao limpar a tela
+      saveCanvasState(); // Salva o estado inicial
+      console.log('Tela limpa.');
+    }
+
+    function saveCanvas() {
+      const dataURL = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = dataURL;
+      link.download = 'drawing.png';
+      link.click();
+      console.log('Desenho salvo.');
+    }
+
+    function fill(e) {
+      const x = e.offsetX;
+      const y = e.offsetY;
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const targetColor = getColorAt(imageData, x, y);
+      const fillColor = hexToRgb(currentColor);
+
+      console.log(`Preenchendo área em (${x}, ${y}) com a cor: ${currentColor}`);
+      console.log(`Cor do pixel clicado: RGB(${targetColor.r}, ${targetColor.g}, ${targetColor.b})`);
+
+      if (colorsMatch(targetColor, fillColor)) {
+        console.log('A área já está preenchida com a cor selecionada.');
+        return;
+      }
+
+      const stack = [[x, y]];
+      while (stack.length) {
+        const [currentX, currentY] = stack.pop();
+        const currentColorData = getColorAt(imageData, currentX, currentY);
+
+        if (colorsMatch(currentColorData, targetColor)) {
+          setPixelColor(imageData, currentX, currentY, fillColor);
+          if (currentX > 0) stack.push([currentX - 1, currentY]);
+          if (currentX < canvas.width - 1) stack.push([currentX + 1, currentY]);
+          if (currentY > 0) stack.push([currentX, currentY - 1]);
+          if (currentY < canvas.height - 1) stack.push([currentX, currentY + 1]);
+        }
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+      console.log('Preenchimento concluído.');
+    }
+
+    function getColorAt(imageData, x, y) {
+      const index = (y * imageData.width + x) * 4;
+      return {
+        r: imageData.data[index],
+        g: imageData.data[index + 1],
+        b: imageData.data[index + 2],
+        a: imageData.data[index + 3]
+      };
+    }
+
+    function setPixelColor(imageData, x, y, color) {
+      const index = (y * imageData.width + x) * 4;
+      imageData.data[index] = color.r;
+      imageData.data[index + 1] = color.g;
+      imageData.data[index + 2] = color.b;
+      imageData.data[index + 3] = 255;
+    }
+
+    function colorsMatch(color1, color2) {
+      return color1.r === color2.r && color1.g === color2.g && color1.b === color2.b;
+    }
+
+    function hexToRgb(hex) {
+      const bigint = parseInt(hex.slice(1), 16);
+      return {
+        r: (bigint >> 16) & 255,
+        g: (bigint >> 8) & 255,
+        b: bigint & 255
+      };
+    }
+
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('mouseout', stopDrawing);
+
+    clearBtn.addEventListener('click', clearCanvas);
+    saveBtn.addEventListener('click', saveCanvas);
+    undoBtn.addEventListener('click', undo);
+
+    fillBtn.addEventListener('click', () => {
+      isFilling = !isFilling;
+      fillBtn.classList.toggle('active', isFilling);
+      isDrawing = false;
+      isErasing = false;
+      eraserBtn.classList.remove('active');
+      brushSizeButtons.forEach(btn => btn.classList.remove('active'));
+      console.log(`Modo de preenchimento: ${isFilling ? 'Ativado' : 'Desativado'}`);
+    });
+
+    eraserBtn.addEventListener('click', () => {
+      isErasing = !isErasing;
+      eraserBtn.classList.toggle('active', isErasing);
+      isFilling = false;
+      fillBtn.classList.remove('active');
+      colorButtons.forEach(btn => btn.classList.remove('active'));
+      console.log(`Modo borracha: ${isErasing ? 'Ativado' : 'Desativado'}`);
+    });
+
+    // Seleciona o pincel médio por padrão
+    document.querySelector('.brush-size-btn[data-size="10"]').classList.add('active');
+  </script>
+</body>
+</html>
