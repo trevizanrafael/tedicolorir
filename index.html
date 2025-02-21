@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Editor de Desenho com Logo</title>
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
+    /* Estilos mantidos do código original */
     body {
       font-family: 'Rubik', sans-serif;
       margin: 0;
@@ -48,11 +50,25 @@
       align-items: center;
     }
 
-    .color-btn.black { background-color: black; }
-    .color-btn.red { background-color: red; }
-    .color-btn.blue { background-color: blue; }
-    .color-btn.green { background-color: green; }
-    .color-btn.yellow { background-color: yellow; }
+    .color-btn.black {
+      background-color: black;
+    }
+
+    .color-btn.red {
+      background-color: red;
+    }
+
+    .color-btn.blue {
+      background-color: blue;
+    }
+
+    .color-btn.green {
+      background-color: green;
+    }
+
+    .color-btn.yellow {
+      background-color: yellow;
+    }
 
     .color-btn.active {
       border: 2px solid #555;
@@ -76,10 +92,9 @@
       border: 2px solid black;
     }
 
-    /* Espaço reservado para a logo */
     .logo-placeholder {
-      width: 150px; /* Largura do espaço para a logo */
-      height: 50px; /* Altura do espaço para a logo */
+      width: 150px;
+      height: 50px;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -154,6 +169,7 @@
     }
   </style>
 </head>
+
 <body>
   <div class="toolbar">
     <div class="color-picker">
@@ -189,103 +205,123 @@
   <script>
     const canvas = document.getElementById('drawing-canvas');
     const ctx = canvas.getContext('2d');
-    const colorButtons = document.querySelectorAll('.color-btn');
-    const brushSizeButtons = document.querySelectorAll('.brush-size-btn');
-    const clearBtn = document.getElementById('clear-btn');
-    const saveBtn = document.getElementById('save-btn');
-    const fillBtn = document.getElementById('fill-btn');
-    const eraserBtn = document.getElementById('eraser-btn');
-    const undoBtn = document.getElementById('undo-btn');
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
 
-    let currentColor = '#000000';
-    let currentSize = 10; // Tamanho médio por padrão
-    let isDrawing = false;
-    let lastX = 0;
-    let lastY = 0;
-    let isFilling = false;
-    let isErasing = false;
-    let canvasHistory = [];
+    const CanvasState = {
+      currentColor: '#000000',
+      currentSize: 10,
+      isDrawing: false,
+      isFilling: false,
+      isErasing: false,
+      canvasHistory: [],
+      lastX: 0,
+      lastY: 0,
+    };
+
+    function initializeCanvas() {
+      setCanvasSize();
+      window.addEventListener('resize', setCanvasSize);
+      canvas.addEventListener('mousedown', startDrawing);
+      canvas.addEventListener('mousemove', draw);
+      canvas.addEventListener('mouseup', stopDrawing);
+      canvas.addEventListener('mouseout', stopDrawing);
+      canvas.addEventListener('touchstart', startDrawing);
+      canvas.addEventListener('touchmove', draw);
+      canvas.addEventListener('touchend', stopDrawing);
+
+      // Inicializa o histórico com o canvas vazio
+      saveCanvasState();
+    }
 
     function setCanvasSize() {
-      canvas.width = window.innerWidth * 0.8;
-      canvas.height = window.innerHeight * 0.7;
+      const width = window.innerWidth * 0.8;
+      const height = window.innerHeight * 0.7;
+
+      canvas.width = width;
+      canvas.height = height;
+      tempCanvas.width = width;
+      tempCanvas.height = height;
+
+      // Redesenha o último estado após redimensionar
+      if (CanvasState.canvasHistory.length > 0) {
+        const lastState = CanvasState.canvasHistory[CanvasState.canvasHistory.length - 1];
+        ctx.putImageData(lastState, 0, 0);
+      }
     }
 
-    setCanvasSize();
-    window.addEventListener('resize', setCanvasSize);
-
-    // Salva o estado atual do canvas no histórico
     function saveCanvasState() {
-      canvasHistory.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
-      if (canvasHistory.length > 20) {
-        canvasHistory.shift(); // Limita o histórico a 20 estados
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      CanvasState.canvasHistory.push(imageData);
+      // Limita o histórico para evitar uso excessivo de memória
+      if (CanvasState.canvasHistory.length > 50) {
+        CanvasState.canvasHistory.shift();
       }
     }
 
-    // Desfaz a última ação
     function undo() {
-      if (canvasHistory.length > 1) {
-        canvasHistory.pop(); // Remove o estado atual
-        const previousState = canvasHistory[canvasHistory.length - 1];
+      if (CanvasState.canvasHistory.length > 1) {
+        // Remove o estado atual
+        CanvasState.canvasHistory.pop();
+        // Obtém o estado anterior
+        const previousState = CanvasState.canvasHistory[CanvasState.canvasHistory.length - 1];
+        // Restaura o estado anterior
         ctx.putImageData(previousState, 0, 0);
-      } else {
-        clearCanvas();
       }
     }
-
-    colorButtons.forEach(button => {
-      button.addEventListener('click', () => {
-        colorButtons.forEach(btn => btn.classList.remove('active'));
-        button.classList.add('active');
-        currentColor = button.dataset.color;
-        isErasing = false;
-        eraserBtn.classList.remove('active');
-        console.log(`Cor selecionada: ${currentColor}`);
-      });
-    });
-
-    brushSizeButtons.forEach(button => {
-      button.addEventListener('click', () => {
-        brushSizeButtons.forEach(btn => btn.classList.remove('active'));
-        button.classList.add('active');
-        currentSize = parseInt(button.dataset.size);
-        isFilling = false;
-        fillBtn.classList.remove('active');
-        console.log(`Tamanho do pincel selecionado: ${currentSize}`);
-      });
-    });
 
     function startDrawing(e) {
-      if (isFilling) {
+      e.preventDefault();
+      if (CanvasState.isFilling) {
         fill(e);
         return;
       }
-      saveCanvasState(); // Salva o estado antes de começar a desenhar
-      isDrawing = true;
-      [lastX, lastY] = [e.offsetX, e.offsetY];
+
+      CanvasState.isDrawing = true;
+      const { offsetX, offsetY } = getEventCoordinates(e);
+      [CanvasState.lastX, CanvasState.lastY] = [offsetX, offsetY];
+
+      // Salva o estado antes de começar a desenhar
+      saveCanvasState();
     }
 
     function draw(e) {
-      if (!isDrawing) return;
-      ctx.beginPath();
-      ctx.moveTo(lastX, lastY);
-      ctx.lineTo(e.offsetX, e.offsetY);
-      ctx.strokeStyle = isErasing ? '#FFFFFF' : currentColor; // Usa branco para a borracha
-      ctx.lineWidth = currentSize;
-      ctx.lineCap = 'round';
-      ctx.stroke();
-      [lastX, lastY] = [e.offsetX, e.offsetY];
+      e.preventDefault();
+      if (!CanvasState.isDrawing) return;
+
+      const { offsetX, offsetY } = getEventCoordinates(e);
+
+      if (CanvasState.isErasing) {
+        // Para a borracha, usamos o globalCompositeOperation
+        ctx.save();
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.beginPath();
+        ctx.arc(offsetX, offsetY, CanvasState.currentSize / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      } else {
+        // Desenho normal
+        ctx.beginPath();
+        ctx.moveTo(CanvasState.lastX, CanvasState.lastY);
+        ctx.lineTo(offsetX, offsetY);
+        ctx.strokeStyle = CanvasState.currentColor;
+        ctx.lineWidth = CanvasState.currentSize;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+      }
+
+      [CanvasState.lastX, CanvasState.lastY] = [offsetX, offsetY];
     }
 
     function stopDrawing() {
-      isDrawing = false;
+      if (CanvasState.isDrawing) {
+        CanvasState.isDrawing = false;
+      }
     }
 
     function clearCanvas() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      canvasHistory = []; // Limpa o histórico ao limpar a tela
-      saveCanvasState(); // Salva o estado inicial
-      console.log('Tela limpa.');
+      saveCanvasState();
     }
 
     function saveCanvas() {
@@ -294,23 +330,17 @@
       link.href = dataURL;
       link.download = 'drawing.png';
       link.click();
-      console.log('Desenho salvo.');
     }
 
     function fill(e) {
-      const x = e.offsetX;
-      const y = e.offsetY;
+      const { offsetX: x, offsetY: y } = getEventCoordinates(e);
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const targetColor = getColorAt(imageData, x, y);
-      const fillColor = hexToRgb(currentColor);
+      const fillColor = hexToRgb(CanvasState.currentColor);
 
-      console.log(`Preenchendo área em (${x}, ${y}) com a cor: ${currentColor}`);
-      console.log(`Cor do pixel clicado: RGB(${targetColor.r}, ${targetColor.g}, ${targetColor.b})`);
+      if (colorsMatch(targetColor, fillColor)) return;
 
-      if (colorsMatch(targetColor, fillColor)) {
-        console.log('A área já está preenchida com a cor selecionada.');
-        return;
-      }
+      saveCanvasState();
 
       const stack = [[x, y]];
       while (stack.length) {
@@ -327,7 +357,6 @@
       }
 
       ctx.putImageData(imageData, 0, 0);
-      console.log('Preenchimento concluído.');
     }
 
     function getColorAt(imageData, x, y) {
@@ -361,36 +390,72 @@
       };
     }
 
-    canvas.addEventListener('mousedown', startDrawing);
-    canvas.addEventListener('mousemove', draw);
-    canvas.addEventListener('mouseup', stopDrawing);
-    canvas.addEventListener('mouseout', stopDrawing);
+    function getEventCoordinates(e) {
+      const rect = canvas.getBoundingClientRect();
+      if (e.touches) {
+        return {
+          offsetX: e.touches[0].clientX - rect.left,
+          offsetY: e.touches[0].clientY - rect.top
+        };
+      }
+      return {
+        offsetX: e.offsetX,
+        offsetY: e.offsetY
+      };
+    }
 
-    clearBtn.addEventListener('click', clearCanvas);
-    saveBtn.addEventListener('click', saveCanvas);
-    undoBtn.addEventListener('click', undo);
-
-    fillBtn.addEventListener('click', () => {
-      isFilling = !isFilling;
-      fillBtn.classList.toggle('active', isFilling);
-      isDrawing = false;
-      isErasing = false;
-      eraserBtn.classList.remove('active');
-      brushSizeButtons.forEach(btn => btn.classList.remove('active'));
-      console.log(`Modo de preenchimento: ${isFilling ? 'Ativado' : 'Desativado'}`);
+    // Event Listeners
+    document.querySelectorAll('.color-btn').forEach(button => {
+      button.addEventListener('click', () => {
+        document.querySelectorAll('.color-btn').forEach(btn => btn.classList.remove('active'));
+        button.classList.add('active');
+        CanvasState.currentColor = button.dataset.color;
+        CanvasState.isErasing = false;
+        document.getElementById('eraser-btn').classList.remove('active');
+      });
     });
 
-    eraserBtn.addEventListener('click', () => {
-      isErasing = !isErasing;
-      eraserBtn.classList.toggle('active', isErasing);
-      isFilling = false;
-      fillBtn.classList.remove('active');
-      colorButtons.forEach(btn => btn.classList.remove('active'));
-      console.log(`Modo borracha: ${isErasing ? 'Ativado' : 'Desativado'}`);
+    document.querySelectorAll('.brush-size-btn').forEach(button => {
+      button.addEventListener('click', () => {
+        document.querySelectorAll('.brush-size-btn').forEach(btn => btn.classList.remove('active'));
+        button.classList.add('active');
+        CanvasState.currentSize = parseInt(button.dataset.size);
+        CanvasState.isFilling = false;
+        document.getElementById('fill-btn').classList.remove('active');
+      });
     });
 
-    // Seleciona o pincel médio por padrão
-    document.querySelector('.brush-size-btn[data-size="10"]').classList.add('active');
+    document.getElementById('fill-btn').addEventListener('click', () => {
+      CanvasState.isFilling = !CanvasState.isFilling;
+      document.getElementById('fill-btn').classList.toggle('active', CanvasState.isFilling);
+      CanvasState.isDrawing = false;
+      CanvasState.isErasing = false;
+      document.getElementById('eraser-btn').classList.remove('active');
+      document.querySelectorAll('.brush-size-btn').forEach(btn => btn.classList.remove('active'));
+    });
+    document.getElementById('eraser-btn').addEventListener('click', () => {
+      CanvasState.isErasing = !CanvasState.isErasing;
+      document.getElementById('eraser-btn').classList.toggle('active', CanvasState.isErasing);
+      CanvasState.isFilling = false;
+      document.getElementById('fill-btn').classList.remove('active');
+
+      // Remove a seleção de cores quando a borracha está ativa
+      if (CanvasState.isErasing) {
+        document.querySelectorAll('.color-btn').forEach(btn => btn.classList.remove('active'));
+      } else {
+        // Restaura a cor preta como padrão quando desativa a borracha
+        document.querySelector('.color-btn.black').classList.add('active');
+        CanvasState.currentColor = '#000000';
+      }
+    });
+
+    document.getElementById('clear-btn').addEventListener('click', clearCanvas);
+    document.getElementById('save-btn').addEventListener('click', saveCanvas);
+    document.getElementById('undo-btn').addEventListener('click', undo);
+
+    // Inicialização
+    initializeCanvas();
   </script>
 </body>
+
 </html>
